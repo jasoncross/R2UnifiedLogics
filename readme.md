@@ -1,9 +1,9 @@
 # RSERIES UNIFIED LOGIC ENGINE 0.7
-Code originally by Joymonkey, updated by IOIIOOO
-With portions inspired by / lifted from Curiousmarc, Mowee, Flthymcnasty, and others!
+Code originally by Joymonkey, updated by IOIIOOO  
+With portions inspired by / lifted from Curiousmarc, Mowee, Flthymcnasty, and others!  
 
-Works with both AVR and Teensy Boards
-AVR Boards don't support Mic effects due to a lack of analog input
+Works with both AVR and Teensy Boards  
+AVR Boards don't support Mic effects due to a lack of analog input  
 
 Now supports I2C Input!
 
@@ -11,9 +11,9 @@ Now supports I2C Input!
 
 # REQUIREMENTS
 
-Arduino IDE: https://www.arduino.cc/en/Main/Software
-Teensyduino (if using Teensy board):  http://www.pjrc.com/teensy/td_download.html
-FastLED: https://github.com/FastLED/FastLED/releases
+Arduino IDE: https://www.arduino.cc/en/Main/Software  
+Teensyduino (if using Teensy board):  http://www.pjrc.com/teensy/td_download.html  
+FastLED: https://github.com/FastLED/FastLED/releases  
 
 **********
 
@@ -24,10 +24,10 @@ This is comprised of a 7 digit long int.
 LEECSNN
 
 ## L - the logic designator - if not provided, defaults to 0 (all)
-*** NOT YET SUPPORTED ***
-   0 - All
-   1 - Front
-   2 - Rear
+*** NOT YET SUPPORTED ***  
+   0 - All  
+   1 - Front  
+   2 - Rear  
 
 ## EE - the effect - use two digits if logic designator provided
    01 - Alarm - flips between color and red with mic effects
