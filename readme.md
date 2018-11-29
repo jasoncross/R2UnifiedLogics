@@ -95,6 +95,8 @@ LEECSNN
  63315 - flashing yellow at slightly higher speed for 15 seconds  
  30008 - leia effect for only 8 seconds  
 
+ [![Demo Video](http://img.youtube.com/vi/xLywBaNr-SY/0.jpg)](http://www.youtube.com/watch?v=xLywBaNr-SY)
+
 **********
 
 # AVR BOARDS
