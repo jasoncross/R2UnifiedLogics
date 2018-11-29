@@ -95,7 +95,7 @@ LEECSNN
  63315 - flashing yellow at slightly higher speed for 15 seconds  
  30008 - leia effect for only 8 seconds  
 
-See some of these effects with our release demo video:
+See some of these effects with our release demo video:  
  [![Demo Video](http://img.youtube.com/vi/xLywBaNr-SY/0.jpg)](http://www.youtube.com/watch?v=xLywBaNr-SY)
 
 **********
