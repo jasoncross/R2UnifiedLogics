@@ -91,6 +91,8 @@
  *  Mic Bright (Green): 124200
  *  Mic Rainbow (Cyan): 135000
  *
+ *  Text Scroll Left (Cyan): 40155118 message #4 "The city's central computer told me." for 18 seconds
+ *
  *  54008 - solid green for 8 seconds
  *  63315 - flashing yellow at slightly higher speed for 15 seconds
  *  30008 - leia effect for only 8 seconds
@@ -146,10 +148,37 @@
  * 
  * Explanation of how "Tween" colors are implimented: http://rseries.net/logic2/color/?keys=4&tweens=4
  * 
+ * **********
+ * 
+ * Scrolling text add-on:
+ *
+ * Enable "#define SUPPORT_SCROLLING_TEXT"
+ *
+ * If your text appears upside down: you need to enable "#define RLD_UPSIDE_DOWN"
+ *
+ * By default the code assumes that your LEDs are staggered like this:
+ *
+ * oooooooooooooooooooooooo
+ *. oooooooooooooooooooooooo
+ * oooooooooooooooooooooooo
+ *. oooooooooooooooooooooooo
+ *
+ * But if your LEDs are staggered like this you ned to enable "#define RLD_STAGGER_EVEN"
+ *
+ *. oooooooooooooooooooooooo
+ * ooooooooooooooooooooooooo
+ *. ooooooooooooooooooooooooo
+ * ooooooooooooooooooooooooo
+ *
+ * You can add additional hard-coded messages by creating a new progmem memory string:
+ *
+ * static const char sMessage10[] PROGMEM = "My new message ...";
+ *
+ * and adding it to the end of the "sMessages" array.
  **/
 
 
-#define PCBVERSION 0 //what kind of LED PCBs are they? 0 = Originals (with Naboo logo on backs of Front and Rear Logic)
+#define PCBVERSION 2 //what kind of LED PCBs are they? 0 = Originals (with Naboo logo on backs of Front and Rear Logic)
                      //                                1 = 2014 Version (with Kenny & McQuarry art on Rear, C3PO on Fronts)
                      //                                2 = 2016 Version (with Deathstar plans on back of Rear Logic)
 
@@ -158,6 +187,10 @@
 
 #define DEBUG 0 //debug mode slows down startup and prints some extra info to serial, only really helpful for development
                 //be warned - likely won't work on AVR due to memory limitations
+
+#define SUPPORT_SCROLLING_TEXT // undefine to save space
+// #define RLD_UPSIDE_DOWN
+// #define RLD_STAGGER_EVEN
 
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   #define BOARDTYPE 1 // Teensy
@@ -192,11 +225,51 @@ userSettings settings[]={ MAX_BRIGHTNESS, DFLT_FRONT_FADE,DFLT_FRONT_DELAY,DFLT_
                                           DFLT_REAR_FADE, DFLT_REAR_DELAY, DFLT_REAR_HUE,
                                           DFLT_FRONT_PAL, DFLT_REAR_PAL, DFLT_FRONT_BRI, DFLT_REAR_BRI }; 
 
+#ifdef SUPPORT_SCROLLING_TEXT
+static const char sMessage1[] PROGMEM = "Beep-bee-bee-boop-bee-doo-weep";
+static const char sMessage2[] PROGMEM = "Excuse me sir, but that R2-D2 is in prime condition, a real bargain.";
+static const char sMessage3[] PROGMEM = "That malfunctioning little twerp.";
+static const char sMessage4[] PROGMEM = "The city's central computer told me.";
+static const char sMessage5[] PROGMEM = "Beep";
+static const char sMessage6[] PROGMEM = "bop";
+static const char sMessage7[] PROGMEM = "R2-D2";
+static const char sMessage8[] PROGMEM = "Beep Beep";
+static const char sMessage9[] PROGMEM = "Bite my shiny ...";
+
+static const char* const sMessages[] PROGMEM = {
+  sMessage1,
+  sMessage2,
+  sMessage3,
+  sMessage4,
+  sMessage5,
+  sMessage6,
+  sMessage7,
+  sMessage8,
+  sMessage9
+};
+#define SizeOfArray(arr) (sizeof(arr)/sizeof(arr[0]))
+#endif
+
 #if (PCBVERSION==0)
   #define FRONT_LED_COUNT 96
 #else
   #define FRONT_LED_COUNT 80
 #endif
+
+#define REAR_LED_COLUMNS 24
+#define REAR_LED_ROWS 4
+#define REAR_LED_COUNT (REAR_LED_COLUMNS*REAR_LED_ROWS)
+
+#define COLORVAL_DEFAULT 0
+#define COLORVAL_RED 1
+#define COLORVAL_ORANGE 2
+#define COLORVAL_YELLOW 3
+#define COLORVAL_GREEN 4
+#define COLORVAL_CYAN 5
+#define COLORVAL_BLUE 6
+#define COLORVAL_PURPLE 7
+#define COLORVAL_MAGENTA 8
+#define COLORVAL_PINK 9
 
 byte adjMode=0; // 0 for no adjustments, 1 for front, 3 for rear. if adjMode>0, then trimpots will be enabled
 byte prevAdjMode=0;
@@ -244,6 +317,7 @@ unsigned int signalMin = 1024;
   #define REDALERT 11
   #define MICBRIGHT 12
   #define MICRAINBOW 13
+  #define TEXTSCROLLLEFT 14
   #define LIGHTSOUT 98
   byte displayEffect; // 0 = normal, 1 = alarm, 2 = march, 3 = leia, 4 = failure
   byte previousEffect;
@@ -273,8 +347,14 @@ unsigned int signalMin = 1024;
   #define MARCHduration 48300
   unsigned int marchSegment[8]={ 0,9800,14500,19300,28800,38300,45300,48300 };
   #define FAILUREduration 10000
-
-  long displayEffectVal = 0; // if you want to boot with a different effect, set it here
+  #ifdef SUPPORT_SCROLLING_TEXT
+                        /* msg            effect                   color            speed    duration */
+    #define STARTUPVAL (4*10000000L)+(TEXTSCROLLLEFT*10000L)+(COLORVAL_CYAN*1000L)+(1*100L) +  (18)
+  #else
+    #define STARTUPVAL 0
+  #endif
+  long displayEffectVal = STARTUPVAL; // if you want to boot with a different effect, set it here
+  long previousEffectVal = ~displayEffectVal;
   #define NORMVAL 0 // set the default effect string for "normal" running
 
   boolean logicInput = 0;
@@ -320,13 +400,13 @@ unsigned int signalMin = 1024;
 
 
   CRGB frontLEDs[FRONT_LED_COUNT];
-  CRGB rearLEDs[96];
+  CRGB rearLEDs[REAR_LED_COUNT];
   CRGB statusLED[1];
   #define TOTALCOLORS (4+(TWEENS*(3)))
   #define TOTALCOLORSWBIZ ((TOTALCOLORS*2)-2)
   byte allColors[2][TOTALCOLORS][3]; //the allColor array will comprise of two color palettes on a Teensy
 
-  LEDstat ledStatus[FRONT_LED_COUNT + 96]; //status array will cover both front and rear logics on a Teensy
+  LEDstat ledStatus[FRONT_LED_COUNT + REAR_LED_COUNT]; //status array will cover both front and rear logics on a Teensy
 
 #if (PCBVERSION<2)
   #define LED_TYPE WS2812
@@ -385,7 +465,15 @@ unsigned int signalMin = 1024;
     31,30,29,32,33,34,35,36,37,38,39,24,23,40,41,42,43,44,45,46,47,18,17,16,
     64,65,66,63,62,61,60,59,58,57,56,71,72,55,54,53,52,51,50,49,48,77,78,79,
     95,94,93,67,92,68,91,69,90,70,89,88,87,86,73,85,74,84,75,83,76,82,81,80 };
-  #else  
+  #elif defined(RLD_UPSIDE_DOWN)
+    //mapping for 2016 RLD (Death Star on back, direct mapping)... but ...
+    // OOPS! Installed upside down
+    const byte rearLEDmap[]PROGMEM = {
+    72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,
+    71,70,69,68,67,66,65,64,63,62,61,60,59,58,57,56,55,54,53,52,51,50,49,48,
+    24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,
+    23,22,21,20,19,18,17,16,15,14,13,12,11,10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
+  #else
     //mapping for 2016 RLD (Death Star on back, direct mapping)...
     const byte rearLEDmap[]PROGMEM = {
      0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,
@@ -414,6 +502,19 @@ unsigned long adjMillis = millis(); //last time we entered an adj mode
 unsigned long statusDelay=1500;
 bool flipflop; 
 bool flipfloplast;
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////  
+
+#ifdef SUPPORT_SCROLLING_TEXT
+int effectMsgStartX;
+int effectMsgLen;
+int effectMsgWidth;
+bool effectMsgShown;
+const char* effectMsgText;
+const char* PROGMEM effectMsgTextP;
+
+byte renderGlyph(char ch, const CRGB fontColors[], int x, int y, bool render = true);
+#endif
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////  
 ////////////////////////////////////////////////////////////////////////////////////////////////////// 
@@ -603,8 +704,8 @@ void setup() {
   Wire.onReceive(i2cEvent);            // register event so when we receive something we jump to receiveEvent();
 
   if (BOARDTYPE == 1 || logicInput == 1) {
-    FastLED.addLeds<LED_TYPE, REAR_PIN, GRB>(rearLEDs, 96);
-    fill_solid( rearLEDs, 96, CRGB(0,0,0));
+    FastLED.addLeds<LED_TYPE, REAR_PIN, GRB>(rearLEDs, REAR_LED_COUNT);
+    fill_solid( rearLEDs, REAR_LED_COUNT, CRGB(0,0,0));
   }
   if (BOARDTYPE == 1 || logicInput == 0) {  
     FastLED.addLeds<LED_TYPE, FRONT_PIN, GRB>(frontLEDs, FRONT_LED_COUNT);
@@ -765,7 +866,7 @@ void parseCommand(char* inputStr) {
   // If it starts with I, treat as an I2C command
   if (inputStr[0]=='I') {
     pos++; 
-    if(!length>pos) hasArgument=false; // end of string reached, no arguments
+    if(pos>length) hasArgument=false; // end of string reached, no arguments
     else  {
       for(byte i=pos; i<length; i++) if(!isdigit(inputStr[i])) goto beep; // invalid, end of string contains non-numerial arguments
       argument=atol(inputStr+pos);    // that's the numerical argument after the command character
@@ -791,7 +892,7 @@ void parseCommand(char* inputStr) {
   address= atoi(addrStr);        // extract the address
   
   // check for more
-  if(!length>pos) goto beep;            // invalid, no command after address
+  if(pos>length) goto beep;            // invalid, no command after address
 
   // echo the command out, so the other logic gets it
   JEDI_SERIAL.println(inputStr);
@@ -799,7 +900,7 @@ void parseCommand(char* inputStr) {
   // special case of M commands, which take a string argument
   if(inputStr[pos]=='M') {
     pos++;
-    if(!length>pos) goto beep;     // no message argument
+    if(pos>length) goto beep;     // no message argument
     doMcommand(address, inputStr+pos);   // pass rest of string as argument
     return;                     // exit
   }
@@ -807,7 +908,7 @@ void parseCommand(char* inputStr) {
   // other commands, get the numerical argument after the command character
 
   pos++;                             // need to increment in order to peek ahead of command char
-  if(!length>pos) hasArgument=false; // end of string reached, no arguments
+  if(pos>length) hasArgument=false; // end of string reached, no arguments
   else  {
     for(byte i=pos; i<length; i++) if(!isdigit(inputStr[i])) goto beep; // invalid, end of string contains non-numerial arguments
     argument=atoi(inputStr+pos);    // that's the numerical argument after the command character
@@ -1234,15 +1335,21 @@ void updateEffect(long inputNum) {
 void runDisplayEffect() {
   if (displayEffectVal == 0)
     displayEffectVal = NORMVAL;
-  
-  int selectLogic = displayEffectVal / 1000000;
+
+  int selectLogic;
   int selectSequence;
   int selectColor;
   int selectSpeed;
   int selectLength;
   int effectHue;
 
+#ifdef SUPPORT_SCROLLING_TEXT
+  int selectTextMsg;  
+  selectTextMsg = (displayEffectVal % 100000000) / 10000000;
+  selectLogic = (displayEffectVal % 10000000) / 1000000;
+#else
   selectLogic = displayEffectVal / 1000000;
+#endif
   selectSequence = (displayEffectVal % 1000000) / 10000;
   selectColor = (displayEffectVal % 10000) / 1000;
   selectSpeed = (displayEffectVal % 1000) / 100;
@@ -1274,6 +1381,8 @@ void runDisplayEffect() {
     displayEffect = MICBRIGHT;  
   else if (selectSequence == 13)
     displayEffect = MICRAINBOW; 
+  else if (selectSequence == 14)
+    displayEffect = TEXTSCROLLLEFT; 
   else if (selectSequence == 98)
     displayEffect = LIGHTSOUT;
   else if (selectSequence == 0)
@@ -1312,6 +1421,7 @@ void runDisplayEffect() {
   //DEBUG_SERIAL.print(F("length "));
   //DEBUG_SERIAL.println(selectLength);
 
+  bool effectValChanged = (previousEffectVal != displayEffectVal);
   if (displayEffect==NORM) {
         if (previousEffect!=NORM) {
           //we were doing something else last time around, go back to our normal settings to be on the safe side
@@ -1857,6 +1967,32 @@ void runDisplayEffect() {
           if (currentMillis-effectStartMillis>=selectLength * 1000) updateEffect(NORMVAL); //go back to normal operation if its time
         previousEffect=MICRAINBOW;
   }
+  else if (displayEffect==TEXTSCROLLLEFT) {
+        if (effectValChanged) {
+          readSettingsFromEEPROM(); // reset to defaults for a clean slate
+          settings[0].frontPalNum=2; settings[0].frontHue=effectHue; settings[0].rearPalNum=2; settings[0].rearHue=effectHue;
+          calculateAllColors(settings[0].frontPalNum,0,0);
+          calculateAllColors(settings[0].rearPalNum,1,0);
+          setupTextMessage(selectTextMsg);
+          effectStartMillis=currentMillis;
+          effectMsgStartX = REAR_LED_COLUMNS;
+          //we'll move on every flip
+          statusDelay = 50 * (selectSpeed + 1);
+          flipflop = true;
+        }
+        if (flipflop)
+        {
+          // scrolling text
+          renderText(effectMsgStartX, 0, effectHue);
+          effectMsgStartX -= 1;
+          if (effectMsgStartX + effectMsgWidth <= 0)
+            effectMsgStartX = REAR_LED_COLUMNS;
+          flipflop = false;
+        }
+        if (selectLength > 0)
+          if (currentMillis-effectStartMillis>=selectLength * 1000) updateEffect(NORMVAL); //go back to normal operation if its time
+        previousEffect=TEXTSCROLLLEFT;
+  }
   else if (displayEffect==LIGHTSOUT) {
         if (previousEffect!=LIGHTSOUT) {
           readSettingsFromEEPROM(); // reset to defaults for a clean slate
@@ -1879,6 +2015,7 @@ void runDisplayEffect() {
     for ( byte i = 0; i < 8; i++) updateLED(pgm_read_byte(&frontLEDmap[i]),settings[0].frontHue,0,0);
     for ( byte i = FRONT_LED_COUNT - 8; i < FRONT_LED_COUNT; i++) updateLED(pgm_read_byte(&frontLEDmap[i]),settings[0].frontHue,0,0);
   }
+  previousEffectVal = displayEffectVal;
 }
 
 
@@ -2112,3 +2249,412 @@ void loop() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////  finn 
+
+#ifdef SUPPORT_SCROLLING_TEXT
+unsigned stringWidth(const char* txt)
+{
+  char ch;
+  unsigned len = 0;
+  while ((ch = *txt++) != '\0')
+  {
+    len += renderGlyph(ch, NULL, 0, 0, false);
+  }
+  return len;
+}
+
+unsigned stringWidth_P(const char* PROGMEM txt)
+{
+  char ch;
+  unsigned len = 0;
+  while ((ch = pgm_read_byte(txt++)) != '\0')
+  {
+    len += renderGlyph(ch, NULL, 0, 0, false);
+  }
+  return len;
+}
+
+byte renderGlyph(char ch, const CRGB fontColors[], int x, int y, bool render)
+{
+  byte dstWidth = REAR_LED_COLUMNS;
+  byte dstHeight = REAR_LED_ROWS;
+  byte dstRowBytes = REAR_LED_COLUMNS;
+  byte advance;
+  byte glyphRowBytes;
+  byte glyphHeight = 4;
+  byte glyphBitmap[2*4];  // max size 2 bytes wide 4 bytes high
+  bool found = LatinFontVar4pt_getLetter(ch, glyphBitmap, glyphRowBytes, advance);
+  if (!found)
+  {
+    // try upper-case if lower-case is missing
+    if (ch >= 'a' && ch < 'z')
+      found = LatinFontVar4pt_getLetter('A'+(ch-'a'), glyphBitmap, glyphRowBytes, advance);
+    // try lower-case if upper-case is missing
+    else if (ch >= 'A' && ch < 'Z')
+      found = LatinFontVar4pt_getLetter('a'+(ch-'A'), glyphBitmap, glyphRowBytes, advance);
+  }
+
+  // render from baseline
+  y += glyphHeight - 1;
+  while (glyphHeight > 0 && y >= 0)
+  {
+    int adv = advance;
+    byte* s = &glyphBitmap[y * glyphRowBytes];
+    if (render && y < dstHeight)
+    {
+      for (byte rb = 0; rb < glyphRowBytes; rb++)
+      {
+        byte i = 6;
+        byte b = *s++;
+        byte m = B11000000;
+        int xx = x;
+        while (adv > 0 && m != 0 && xx < dstWidth)
+        {
+          if ((b & m) != 0 && xx >= 0)
+          {
+            rearLEDs[pgm_read_byte(&rearLEDmap[y * dstRowBytes + xx])] = fontColors[((b >> i) & 3)-1];
+          }
+          adv--;
+          m >>= 2;
+          i -= 2;
+          xx++;
+        }
+      }
+    }
+    x += (y&1);
+    glyphHeight--;
+    y--;
+  }
+  return advance + 1;
+}
+
+void renderText(int x, int y, byte effectHue)
+{
+  CRGB fontColors[3];
+
+  /* dimmest */
+  fontColors[0].setHSV(
+    allColors[0][0][0] + effectHue,
+    allColors[0][0][1],
+    1
+  );
+  fontColors[1].setHSV(
+    allColors[0][0][0] + effectHue,
+    allColors[0][0][1],
+    16
+  );
+  /* brightest */
+  fontColors[2].setHSV(
+    allColors[0][0][0] + effectHue,
+    allColors[0][0][1],
+    64
+  );
+  fill_solid( rearLEDs, REAR_LED_COUNT, CRGB(0,0,0));
+  for (int i = 0; i < effectMsgLen; i++)
+  {
+    char ch = 0;
+    if (effectMsgText != NULL)
+      ch = effectMsgText[i];
+    if (effectMsgTextP != NULL)
+      ch = pgm_read_byte(&effectMsgTextP[i]);
+    int adv = renderGlyph(ch, fontColors, x, 0);
+    x += adv;
+    if (x > REAR_LED_COLUMNS)
+      break;
+  }
+  effectMsgShown = true;
+}
+
+void setupTextMessage(int selectTextMsg)
+{
+  effectMsgLen = effectMsgWidth = 0;
+  if (selectTextMsg != 0)
+  {
+    selectTextMsg--;
+    if (selectTextMsg < 0 && selectTextMsg >= SizeOfArray(sMessages))
+      selectTextMsg = 0;
+    effectMsgTextP = (const char*)pgm_read_ptr(&sMessages[selectTextMsg]);
+  }
+  if (effectMsgText != NULL)
+  {
+    effectMsgLen = strlen(effectMsgText);
+    effectMsgWidth = stringWidth(effectMsgText);
+  }
+  else if (effectMsgTextP != NULL)
+  {
+    effectMsgLen = strlen_P(effectMsgTextP);
+    effectMsgWidth = stringWidth_P(effectMsgTextP);
+  }
+  effectMsgShown = false;
+}
+
+
+static bool LatinFontVar4pt_getLetter(const char inChar, byte* outBuffer, byte &rowBytes, byte& advance)
+{
+  static const byte fontData[] PROGMEM =
+  {
+    '.', 1,
+    B00000000,
+    B00000000,
+    B00000000,
+    B11000000,
+
+    'A', 3,
+    B10111000,
+    B11001100,
+    B11111100,
+    B11001100,
+
+    'B', 3,
+    B11000000,
+    B11111000,
+    B11001100,
+    B11111000,
+
+    'C', 3,
+    B10111100,
+    B11000000,
+    B11000000,
+    B10111100,
+
+    'D', 3,
+    B11111000,
+    B11001100,
+    B11001100,
+    B11111000,
+
+    'E', 3,
+    B11111100,
+    B11000000,
+    B11110000,
+    B11111100,
+
+    'F', 3,
+    B11111100,
+    B11000000,
+    B11110000,
+    B11000000,
+
+    'G', 3,
+    B10111100,
+    B11000000,
+    B11001100,
+    B10111100,
+
+    'H', 3,
+    B11001100,
+    B11001100,
+    B11111100,
+    B11001100,
+
+    'I', 1,
+    B11000000,
+    B11000000,
+    B11000000,
+    B11000000,
+
+    'J', 2,
+    B00110000,
+    B00110000,
+    B00110000,
+    B11100000,
+
+    'K', 3,
+    B11001100,
+    B11110000,
+    B11001100,
+    B11001100,
+
+    'L', 3,
+    B11000000,
+    B11000000,
+    B11000000,
+    B11111100,
+
+    'M', 3,
+    B11101100,
+    B11111100,
+    B11001100,
+    B11001100,
+
+    'N', 3,
+    B11001100,
+    B11111100,
+    B11111100,
+    B11001100,
+
+    'O', 3,
+    B10111000,
+    B11001100,
+    B11001100,
+    B10111000,
+
+    'P', 3,
+    B11111000,
+    B11001100,
+    B11111000,
+    B11000000,
+
+    'Q', 4,
+    B10111000,
+    B11001100,
+    B11001100,
+    B10111111,
+
+    'R', 3,
+    B11110000,
+    B11001100,
+    B11110000,
+    B11001100,
+
+    'S', 3,
+    B11111100,
+    B11000000,
+    B00001100,
+    B11111100,
+
+    'T', 3,
+    B11111100,
+    B00110000,
+    B00110000,
+    B00110000,
+
+    'U', 3,
+    B11001100,
+    B11001100,
+    B11001100,
+    B10111000,
+
+    'V', 3,
+    B11001100,
+    B11001100,
+    B11001100,
+    B00110000,
+
+    'W', 5,
+    B11000000, B11000000,
+    B11001100, B11000000,
+    B11101110, B11000000,
+    B00110011, B00000000,
+
+    'X', 3,
+    B11001100,
+    B00110000,
+    B00110000,
+    B11001100,
+
+    'Y', 3,
+    B11001100,
+    B11001100,
+    B00110000,
+    B00110000,
+
+    'Z', 3,
+    B11111100,
+    B00101100,
+    B11100000,
+    B11111100,
+
+    '\'', 1,
+    B11000000,
+    B00000000,
+    B00000000,
+    B00000000,
+
+    '!', 1,
+    B11000000,
+    B11000000,
+    B00000000,
+    B11000000,
+
+    '-', 3,
+    B00000000,
+    B00000000,
+    B00111100,
+    B00000000,
+
+    'O', 3,
+    B10111000,
+    B11001100,
+    B11001100,
+    B10111000,
+
+    '1', 2,
+    B00110000,
+    B10110000,
+    B00110000,
+    B00110000,
+
+    '2', 3,
+    B11110000,
+    B10001100,
+    B00110000,
+    B11111100,
+
+    '3', 3,
+    B11111100,
+    B00111100,
+    B00001100,
+    B11111100,
+
+    '4', 3,
+    B11001100,
+    B11001100,
+    B11111100,
+    B00001100,
+
+    '5', 3,
+    B11111100,
+    B11000000,
+    B00001100,
+    B11111100,
+
+    '6', 3,
+    B11000000,
+    B11111000,
+    B11001100,
+    B11111100,
+
+    '7', 3,
+    B11111100,
+    B00001100,
+    B00001100,
+    B00001100,
+
+    '8', 3,
+    B11111100,
+    B11001100,
+    B11101100,
+    B11111100,
+
+    '9', 3,
+    B11111100,
+    B11001100,
+    B10111100,
+    B00001100,
+  };
+  size_t fontDataSize = sizeof(fontData);
+
+  const byte* end = fontData + fontDataSize;
+  for (const byte* ptr = fontData; ptr < end;)
+  {
+      char ch = pgm_read_byte(ptr++);
+      advance = pgm_read_byte(ptr++);
+      rowBytes = (advance <= 4) ? 1 : 2;
+      if (ch == inChar)
+      {
+          byte* dst = outBuffer;
+          for (byte y = 0; y < 4; y++)
+          {
+              for (byte i = 0; i < rowBytes; i++)
+                  *dst++ = pgm_read_byte(ptr++);
+          }
+          return true;
+      }
+      ptr += rowBytes * 4;
+  }
+  // interpret missing glyph as white-space
+  advance = 0;
+  rowBytes = 0;
+  return false;
+}
+#endif
