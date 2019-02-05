@@ -177,7 +177,6 @@
  * and adding it to the end of the "sMessages" array.
  **/
 
-
 #define PCBVERSION 2 //what kind of LED PCBs are they? 0 = Originals (with Naboo logo on backs of Front and Rear Logic)
                      //                                1 = 2014 Version (with Kenny & McQuarry art on Rear, C3PO on Fronts)
                      //                                2 = 2016 Version (with Deathstar plans on back of Rear Logic)
@@ -194,6 +193,10 @@
 
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   #define BOARDTYPE 1 // Teensy
+#elif defined(__SAMD21G18A__)
+  #define BOARDTYPE 2 // Zero
+  #define SWAPADJ 1 //on some early Reactor Zero boards the Front/Rear switch was labelled incorrectly, this will fix that
+                    //1 for red PCB , 0 for green
 #else
   #define BOARDTYPE 0 // AVR
 #endif
@@ -201,14 +204,27 @@
 #include <FastLED.h>
 #include <Wire.h>
 #include <avr/pgmspace.h> //to save SRAM, some constants get stored in flash memory
+#if BOARDTYPE == 2
+#include <FlashStorage.h> //see StoreNameAndSurname example
+#else
 #include "EEPROM.h"       //used to store user settings in EEPROM (settings will persist on reboots)
+#endif
 
 //a struct that holds the current color number and pause value of each LED (when pause value hits 0, the color number gets changed)
 //to save SRAM, we don't store the "direction" anymore, instead we pretend that instead of having 16 colors, we've got 31 (16 that cross-fade up, and 15 "bizarro" colors that cross-fade back in reverse)
 struct LEDstat { byte colorNum; byte colorPause; };
 
 //adjustable settings
+#if BOARDTYPE == 2
+struct userSettings {
+  unsigned int writes; //keeps a count of how many times we've written settings to flash
+  byte maxBri;
+  int frontDelay; byte frontFade; byte frontBri; byte frontHue; byte frontPalNum; byte frontDesat;
+  int rearDelay;  byte rearFade;  byte rearBri;  byte rearHue;  byte rearPalNum; byte rearDesat;
+};
+#else
 struct userSettings { byte maxBri; byte frontFade; byte frontDelay; byte frontHue; byte rearFade; byte rearDelay; byte rearHue; byte frontPalNum; byte rearPalNum; byte frontBri; byte rearBri; };
+#endif
 //default settings (will be overwritten from stored EEPROM data during setup(), or stored in EEPROM if current EEPROM values look invalid)
 //to-do: add a version number
 #define DFLT_FRONT_FADE 1
@@ -221,10 +237,13 @@ struct userSettings { byte maxBri; byte frontFade; byte frontDelay; byte frontHu
 #define DFLT_REAR_PAL 1
 #define DFLT_FRONT_BRI 200
 #define DFLT_REAR_BRI 200
-userSettings settings[]={ MAX_BRIGHTNESS, DFLT_FRONT_FADE,DFLT_FRONT_DELAY,DFLT_FRONT_HUE,
+userSettings settings[]={ 0, MAX_BRIGHTNESS, DFLT_FRONT_FADE,DFLT_FRONT_DELAY,DFLT_FRONT_HUE,
                                           DFLT_REAR_FADE, DFLT_REAR_DELAY, DFLT_REAR_HUE,
                                           DFLT_FRONT_PAL, DFLT_REAR_PAL, DFLT_FRONT_BRI, DFLT_REAR_BRI }; 
-
+#if BOARDTYPE == 2
+FlashStorage(my_flash_store, userSettings);
+userSettings tempSettings;
+#endif
 #ifdef SUPPORT_SCROLLING_TEXT
 static const char sMessage1[] PROGMEM = "Astromech";
 static const char sMessage2[] PROGMEM = "Excuse me sir, but that R2-D2 is in prime condition, a real bargain.";
@@ -291,7 +310,11 @@ unsigned int signalMin = 1024;
   #else
     #define JEDI_SERIAL Serial // use standard?
   #endif
-  #define DEBUG_SERIAL Serial
+  #if (BOARDTYPE==2)
+    #define DEBUG_SERIAL SerialUSB
+  #else
+    #define DEBUG_SERIAL Serial
+  #endif
   #define CMD_MAX_LENGTH 64 // maximum number of characters in a command (63 chars since we need the null termination)
   #define MAXSTRINGSIZE 64  // maximum number of letters in a logic display message
   char cmdString[CMD_MAX_LENGTH];
@@ -365,7 +388,7 @@ unsigned int signalMin = 1024;
     #define delayPin A0 //analog pin to read keyPause value
     #define fadePin A1 //analog pin to read tweenPause value
     #define briPin A2 //analog pin to read Brightness value
-    #define huePin A3 //analog pin to read Color/Hue shift value  
+    #define huePin A3 //analog pin to read Color/Hue shift value
     #define FRONT_PIN 6
     #define REAR_PIN 6
     #define TOGGLEPIN 4 // pin to detect which logic is front vs back on AVR boards
@@ -373,7 +396,7 @@ unsigned int signalMin = 1024;
     #define FJUMP_PIN 3  //front jumper
     #define RJUMP_PIN 3  //rear jumper 
     #define STATUSLED_PIN 13 //status LED is connected to pin 10, incorrectly labelled 9 on the PCB!!    
-  #else
+  #elif (BOARDTYPE == 1)
     // Pins Specific to Teensy
     #define delayPin A1 //15analog pin to read keyPause value
     #define fadePin A2 //16analog pin to read tweenPause value
@@ -386,9 +409,28 @@ unsigned int signalMin = 1024;
     #define RJUMP_PIN 1  //rear jumper 
     #define STATUSLED_PIN 10 //status LED is connected to pin 10, incorrectly labelled 9 on the PCB!!  
     #define TOGGLEPIN 0 // not used  
+  #elif (BOARDTYPE == 2)
+    // Pins Specific to Zero
+    #define delayPin A0 //15analog pin to read keyPause value
+    #define fadePin A1 //16analog pin to read tweenPause value
+    #define briPin A2 //17analog pin to read Brightness value
+    #define huePin A3 //20analog pin to read Color/Hue shift value  
+    #define FRONT_PIN 5
+    #define REAR_PIN 3
+    #define MIC_PIN 23 //pin used to for microphone preamp
+    #define FJUMP_PIN 0  //front jumper
+    #define RJUMP_PIN 1  //rear jumper 
+    #define STATUSLED_PIN 8 //status LED is connected to pin 10, incorrectly labelled 9 on the PCB!!  
+    #define TOGGLEPIN 0 // not used  
+  #else
+    #error Unknown board type
   #endif
   #define TWEENS 14 //lower=faster higher=smoother color crossfades, closely related to the Fade setting
-  #define PAL_PIN 2  //pin used to switch palettes in ADJ mode 
+  #if (BOARDTYPE==1)
+    #define PAL_PIN 9  //pin used to switch palettes in ADJ mode
+  #else
+    #define PAL_PIN 2  //pin used to switch palettes in ADJ mode
+  #endif
 
   #define REAR_I2C 10 // A in hex - I2C Address for Rear or BOTH (if Teensy)
   #define FRONT_I2C 11  // B in hex - I2C Address for Front
@@ -632,6 +674,10 @@ void microphoneRead(unsigned int micPeriod=100) {
 
 //quick funciton to write all the current++++ settings to EEPROM in order
 void writeSettingsToEEPROM() {
+#if BOARDTYPE == 2
+    settings[0].writes++;
+    my_flash_store.write(settings[0]);
+#else
     EEPROM.write(0, settings[0].maxBri);
     EEPROM.write(1, settings[0].frontFade);
     EEPROM.write(2, settings[0].frontDelay);
@@ -643,9 +689,14 @@ void writeSettingsToEEPROM() {
     EEPROM.write(8, settings[0].rearPalNum);
     EEPROM.write(9, settings[0].frontBri);
     EEPROM.write(10, settings[0].rearBri);
+#endif
 }
 void readSettingsFromEEPROM() {
-  settings[0]={EEPROM.read(0), EEPROM.read(1),EEPROM.read(2), EEPROM.read(3), EEPROM.read(4), EEPROM.read(5), EEPROM.read(6), EEPROM.read(7), EEPROM.read(8), EEPROM.read(9), EEPROM.read(10)};
+#if BOARDTYPE == 2
+    settings[0] = my_flash_store.read();
+#else
+    settings[0]={EEPROM.read(0), EEPROM.read(1),EEPROM.read(2), EEPROM.read(3), EEPROM.read(4), EEPROM.read(5), EEPROM.read(6), EEPROM.read(7), EEPROM.read(8), EEPROM.read(9), EEPROM.read(10)};
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
@@ -666,11 +717,18 @@ void setup() {
     #if (DEBUG==1)
     DEBUG_SERIAL.println("AVR Board");
     #endif
-  } else {
+  } else if (BOARDTYPE == 1) {
     #if (DEBUG==1)
     DEBUG_SERIAL.println("Teensy Reactor");
     #endif
+  } else if (BOARDTYPE == 2) {
+    #if (DEBUG==1)
+    DEBUG_SERIAL.println("Reactor Zero");
+    #endif
   }
+
+    DEBUG_SERIAL.flush();
+    delay(5000);
 
   // Determine which board is running and act accordingly
   if (BOARDTYPE == 0) {
@@ -703,17 +761,17 @@ void setup() {
   #endif
   Wire.onReceive(i2cEvent);            // register event so when we receive something we jump to receiveEvent();
 
-  if (BOARDTYPE == 1 || logicInput == 1) {
+  if (BOARDTYPE == 1 || BOARDTYPE == 2 || logicInput == 1) {
     FastLED.addLeds<LED_TYPE, REAR_PIN, GRB>(rearLEDs, REAR_LED_COUNT);
     fill_solid( rearLEDs, REAR_LED_COUNT, CRGB(0,0,0));
   }
-  if (BOARDTYPE == 1 || logicInput == 0) {  
+  if (BOARDTYPE == 1 || BOARDTYPE == 2 || logicInput == 0) {
     FastLED.addLeds<LED_TYPE, FRONT_PIN, GRB>(frontLEDs, FRONT_LED_COUNT);
     fill_solid( frontLEDs, FRONT_LED_COUNT, CRGB(0,0,0));
   }
 
   // turn on status LED for Teensy
-  if (BOARDTYPE == 1) {
+  if (BOARDTYPE == 1 || BOARDTYPE == 2 ) {
     FastLED.addLeds<SK6812, STATUSLED_PIN, GRB>(statusLED, 1);
     statusLED[0] = 0x220000; FastLED.show(); //status LED dark red
     pinMode(13, OUTPUT); digitalWrite(13, HIGH); //turn on Teensy LED
@@ -726,10 +784,20 @@ void setup() {
   pinMode(PAL_PIN,INPUT_PULLUP); 
 
   //if eeprom settings look invalid (frontFade>100), or front jumper is pulled low on Teensy or S3 in place on AVR, reset eeprom values to defaults
-  if ((EEPROM.read(1)>100)||(BOARDTYPE == 1 && digitalRead(FJUMP_PIN)==0)||(BOARDTYPE == 0 && digitalRead(FJUMP_PIN)==HIGH)) {
-    if (EEPROM.read(1)>100) {
+#if BOARDTYPE == 2
+  tempSettings = my_flash_store.read();
+  bool flashInvalid = (tempSettings.writes == 0);
+#else
+  bool flashInvalid = (EEPROM.read(1)>100);
+#endif
+  if ((flashInvalid)||(BOARDTYPE == 1 && digitalRead(FJUMP_PIN)==0)||(BOARDTYPE == 0 && digitalRead(FJUMP_PIN)==HIGH)) {
+    if (flashInvalid) {
       #if (DEBUG==1) 
+       #if BOARDTYPE == 2
+        DEBUG_SERIAL.println("Bad eeprom value. 001="+String(tempSettings.writes));
+       #else
         DEBUG_SERIAL.println("Bad eeprom value. 001="+String(EEPROM.read(1)));
+       #endif
       #endif
     } else {
       #if (DEBUG==1) 
@@ -739,13 +807,13 @@ void setup() {
     #if (DEBUG==1) 
       DEBUG_SERIAL.println("Writing EEPROM defaults");
     #endif
-    if (BOARDTYPE == 1) {
+    if (BOARDTYPE == 1 || BOARDTYPE == 2) {
       for (byte i=0; i<5; i++){ statusLED[0] = 0x222200; FastLED.delay(200); statusLED[0] = 0x000000; FastLED.delay(200);} //blinky
     } else if (BOARDTYPE == 0) {
       for (byte i=0; i<5; i++){ digitalWrite(STATUSLED_PIN, HIGH); FastLED.delay(200); digitalWrite(STATUSLED_PIN, LOW); FastLED.delay(200);} //blinky
     }
     writeSettingsToEEPROM();    
-    if (BOARDTYPE == 1) {
+    if (BOARDTYPE == 1 || BOARDTYPE == 2) {
       statusLED[0] = 0x110022; FastLED.show(); // Teensy LED
     } else if (BOARDTYPE == 0) { // AVR flutter the status LED to show we are done
       digitalWrite(STATUSLED_PIN, HIGH);
@@ -781,8 +849,12 @@ void setup() {
   //settings[0]={EEPROM.read(0), EEPROM.read(1),EEPROM.read(2), EEPROM.read(3), EEPROM.read(4), EEPROM.read(5), EEPROM.read(6), EEPROM.read(7), EEPROM.read(8), EEPROM.read(9), EEPROM.read(10)};
   #if (DEBUG==1) 
   DEBUG_SERIAL.println("bri,frontFade,frontDelay,frontHue,rearFade,rearDelay,rearHue,frontPalNum,rearPalNum,frontBrightness,rearBrightness");
+  #if BOARDTYPE == 2
+  DEBUG_SERIAL.print(F("flash: "));
+  #else
   DEBUG_SERIAL.print(F("eeprom: "));
   for (byte i=0; i<11; i++) { DEBUG_SERIAL.print(String(EEPROM.read(i))); if (i<10) DEBUG_SERIAL.print(F(",")); }
+  #endif
   DEBUG_SERIAL.println(".");
   #endif
   #if (DEBUG==1)
@@ -813,11 +885,11 @@ void setup() {
     #endif
   }
 
-  if (BOARDTYPE == 1) {
+  if (BOARDTYPE == 1 || BOARDTYPE == 2) {
     statusLED[0] = 0x002200; FastLED.show(); //status LED dark green
     //delay(50);
   }
-  
+  DEBUG_SERIAL.println("setup done");
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
@@ -1977,7 +2049,7 @@ void runDisplayEffect() {
           effectStartMillis=currentMillis;
           effectMsgStartX = REAR_LED_COLUMNS;
           //we'll move on every flip
-          statusDelay = 50 * (selectSpeed + 1);
+          statusDelay = 20 * (selectSpeed + 1);
           flipflop = true;
         }
         if (flipflop)
@@ -2040,11 +2112,17 @@ void loop() {
             statusLED[0] = 0x000022; FastLED.show();
             //statusLED[0] = 0x220000; FastLED.show();
           }
+          else if (BOARDTYPE == 2) {
+            statusLED[0] = 0x000022;
+          }
           else if (BOARDTYPE == 0)
             digitalWrite(STATUSLED_PIN,HIGH);
         } else {  
           if (BOARDTYPE == 1) {
             statusLED[0] = 0x220000; FastLED.show();
+          }
+          else if (BOARDTYPE == 2) {
+            statusLED[0] = 0x220000;
           }
           else if (BOARDTYPE == 0)
             digitalWrite(STATUSLED_PIN,LOW);
@@ -2053,7 +2131,7 @@ void loop() {
       else if (adjMode==1) {
         //for front adjustment mode on teensy, blink back & forth between blue and white    
         if (flipflop==0) { 
-          if (BOARDTYPE == 1)
+          if (BOARDTYPE == 1 || BOARDTYPE == 2)
             statusLED[0] = 0x000022;
           else if (BOARDTYPE == 0) { // blink LED faster
             digitalWrite(STATUSLED_PIN, HIGH);
@@ -2172,7 +2250,7 @@ void loop() {
     #endif
     for (byte i=0; i<5; i++){ statusLED[0] = 0x222200; FastLED.delay(200); statusLED[0] = 0x000000; FastLED.delay(200);}
     writeSettingsToEEPROM();
-    if (BOARDTYPE == 1) {
+    if (BOARDTYPE == 1 || BOARDTYPE == 2) {
       statusLED[0] = 0x110022; FastLED.delay(1000); //Teensy - a purple status LED tells us that we're all done
     } else if (BOARDTYPE == 0) { // AVR flutter the status LED to show we are done
       digitalWrite(STATUSLED_PIN, HIGH);
@@ -2238,11 +2316,21 @@ void loop() {
 
   // run display effects here
 
+#if BOARDTYPE == 2
+  // FastLED doesn't update millis() while interrupts are off so updating
+  // too frequently will cause a massive drift in millis. So we update every
+  // 10ms giving us 100fps
+  static unsigned long lastMillis;
+  if (lastMillis + 10 < currentMillis)
+  {
+    runDisplayEffect();
+    FastLED.show();
+    lastMillis = currentMillis;
+  }
+#else
   runDisplayEffect();
-  
   FastLED.show();
-
-
+#endif
   
 }
 
