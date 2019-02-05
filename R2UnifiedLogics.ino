@@ -226,15 +226,15 @@ userSettings settings[]={ MAX_BRIGHTNESS, DFLT_FRONT_FADE,DFLT_FRONT_DELAY,DFLT_
                                           DFLT_FRONT_PAL, DFLT_REAR_PAL, DFLT_FRONT_BRI, DFLT_REAR_BRI }; 
 
 #ifdef SUPPORT_SCROLLING_TEXT
-static const char sMessage1[] PROGMEM = "Beep-bee-bee-boop-bee-doo-weep";
+static const char sMessage1[] PROGMEM = "Astromech";
 static const char sMessage2[] PROGMEM = "Excuse me sir, but that R2-D2 is in prime condition, a real bargain.";
 static const char sMessage3[] PROGMEM = "That malfunctioning little twerp.";
 static const char sMessage4[] PROGMEM = "The city's central computer told me.";
 static const char sMessage5[] PROGMEM = "Beep";
-static const char sMessage6[] PROGMEM = "bop";
+static const char sMessage6[] PROGMEM = "Beep-bee-bee-boop-bee-doo-weep";
 static const char sMessage7[] PROGMEM = "R2-D2";
 static const char sMessage8[] PROGMEM = "Beep Beep";
-static const char sMessage9[] PROGMEM = "Bite my shiny ...";
+static const char sMessage9[] PROGMEM = "Bite my shiny metal ... Beep ... Boop ...";
 
 static const char* const sMessages[] PROGMEM = {
   sMessage1,
