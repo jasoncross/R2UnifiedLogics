@@ -1,11 +1,11 @@
-# RSERIES UNIFIED LOGIC ENGINE 0.7
+# RSERIES UNIFIED LOGIC ENGINE 0.8
 Code originally by Joymonkey, updated by IOIIOOO  
 With portions inspired by / lifted from Curiousmarc, Mowee, Flthymcnasty, and others!  
 
 Works with both AVR and Teensy Boards  
 AVR Boards don't support Mic effects due to a lack of analog input  
 
-Now supports I2C Input!
+Now supports scrolling text!
 
 **********
 
@@ -19,9 +19,21 @@ FastLED: https://github.com/FastLED/FastLED/releases
 
 # COMMAND INPUT
 The RSeries use a command input string to tell it what effects combination should be run.
-This is comprised of a 7 digit long int.
+This is comprised of a 8 digit long int.
 
-LEECSNN
+TLEECSNN
+
+## T - the text message designator - if not provided, defaults 0 (first message)
+   0 - "Astromech"
+   1 - "Astromech"
+   2 - "Excuse me sir, but that R2-D2 is in prime condition, a real bargain."
+   3 - "That malfunctioning little twerp."
+   4 - "The city's central computer told me."
+   5 - "Beep"
+   6 - "Beep-bee-bee-boop-bee-doo-weep"
+   7 - "R2-D2"
+   8 - "Beep Boop"
+   9 - "Bite my shiny metal ... Beep ... Boop ...";
 
 ## L - the logic designator - if not provided, defaults to 0 (all)
 *** NOT YET SUPPORTED ***  
@@ -43,6 +55,7 @@ LEECSNN
    11 - Red Alert - shows color specified based on mic input  
    12 - Mic Bright - brightness of color specified back on mic input  
    13 - Mic Rainbow - color goes from default specified through color range based on mic input  
+   14 - Text Scrolling Left
    98 - Displays Off - turns off displays  
    00 - Reset to Normal  
 ## C - color designator
@@ -90,6 +103,8 @@ LEECSNN
  Red Alert: 111300  
  Mic Bright (Green): 124200  
  Mic Rainbow (Cyan): 135000  
+
+ Text Scroll Left (Cyan): 40155118 [message #4 "The city's central computer told me." for 18 seconds]
 
  54008 - solid green for 8 seconds  
  63315 - flashing yellow at slightly higher speed for 15 seconds  
